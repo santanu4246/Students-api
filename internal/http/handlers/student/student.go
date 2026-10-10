@@ -7,7 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-
 	"github.com/go-playground/validator/v10"
 	"github.com/santanu/students-api/internal/types"
 	"github.com/santanu/students-api/internal/utils/response"
