@@ -7,12 +7,14 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+
 	"github.com/go-playground/validator/v10"
+	"github.com/santanu/students-api/internal/storage"
 	"github.com/santanu/students-api/internal/types"
 	"github.com/santanu/students-api/internal/utils/response"
 )
 
-func New() http.HandlerFunc {
+func New(storage storage.Storage) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		var student types.Student
@@ -38,9 +40,21 @@ func New() http.HandlerFunc {
 			return 
 		}
 		
-		slog.Info("createing student")
+		
 
-		response.WriteJson(w, http.StatusCreated, map[string] string {"sucess" : "OK"})
+		lastID, err := storage.CreateStudent(
+			student.Name,
+			student.Email,
+			student.Age,
+		)
+		slog.Info("user created sucessfully", slog.String("userID", fmt.Sprint(lastID)))
+		if err != nil {
+
+			response.WriteJson(w, http.StatusInternalServerError, err)
+			return 
+		}
+
+		response.WriteJson(w, http.StatusCreated, map[string] int64 {"id" : lastID})
 
 		// w.Write([]byte("Welcome to students api"))
 	}
