@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	config "github.com/santanu/students-api/internal"
+	"github.com/santanu/students-api/internal/storage"
 	"github.com/santanu/students-api/internal/types"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -81,10 +82,66 @@ func (s *Sqlite) GetStudentById(id int64) (types.Student, error) {
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return types.Student{}, fmt.Errorf("no student found with id %s", fmt.Sprint(id))
+			return types.Student{}, storage.ErrNotFound
 		}
 		return types.Student{}, fmt.Errorf("query error: %w", err)
 	}
 
 	return student, nil
+}
+
+func (s *Sqlite) UpdateStudent(id int64, name string, email string, age int) error {
+
+	stmt, err := s.Db.Prepare("UPDATE students SET name = ?, email = ?, age = ? WHERE id = ?")
+
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	result, err := stmt.Exec(name, email, age, id)
+
+	if err != nil {
+		return err
+	}
+
+	rows, err := result.RowsAffected()
+
+	if err != nil {
+		return err
+	}
+
+	if rows == 0 {
+		return storage.ErrNotFound
+	}
+
+	return nil
+}
+
+func (s *Sqlite) DeleteStudent(id int64) error {
+
+	stmt, err := s.Db.Prepare("DELETE FROM students WHERE id = ?")
+
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	result, err := stmt.Exec(id)
+
+	if err != nil {
+		return err
+	}
+
+	rows, err := result.RowsAffected()
+
+	if err != nil {
+		return err
+	}
+
+	if rows == 0 {
+		return storage.ErrNotFound
+	}
+
+	return nil
 }
