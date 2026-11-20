@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 	"github.com/santanu/students-api/internal"
+	"github.com/santanu/students-api/internal/http/handlers/attendance"
 	"github.com/santanu/students-api/internal/http/handlers/student"
 	"github.com/santanu/students-api/internal/storage/sqlite"
 )
@@ -36,6 +37,8 @@ func main() {
 	router.HandleFunc("GET /api/students/{id}", student.GetByID(storage))
 	router.HandleFunc("PUT /api/students/{id}", student.Update(storage))
 	router.HandleFunc("DELETE /api/students/{id}", student.Delete(storage))
+	router.HandleFunc("POST /api/students/{id}/attendance", attendance.Mark(storage))
+	router.HandleFunc("GET /api/students/{id}/attendance", attendance.List(storage))
 	//setup server
 	server := http.Server{
 		Addr:    cfg.Addr,
