@@ -5,6 +5,7 @@ type Student struct {
 	Name string `json:"name" validate:"required"`
 	Email string `json:"email" validate:"required"`
 	Age int `json:"age" validate:"required"`
+	RollNumber string `json:"roll_number" validate:"required"`
 }
 
 // Attendance is one student's status on one day.

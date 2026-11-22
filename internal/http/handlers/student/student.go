@@ -49,9 +49,14 @@ func New(storage storage.Storage) http.HandlerFunc {
 			student.Name,
 			student.Email,
 			student.Age,
+			student.RollNumber,
 		)
 		slog.Info("user created sucessfully", slog.String("userID", fmt.Sprint(lastID)))
 		if err != nil {
+			if errors.Is(err, storagepkg.ErrDuplicateRollNumber) {
+				response.WriteJson(w, http.StatusConflict, response.GeneralError(err))
+				return
+			}
 
 			response.WriteJson(w, http.StatusInternalServerError, err)
 			return 
@@ -123,9 +128,13 @@ func Update(storage storage.Storage) http.HandlerFunc {
 			return
 		}
 
-		err = storage.UpdateStudent(intId, student.Name, student.Email, student.Age)
+		err = storage.UpdateStudent(intId, student.Name, student.Email, student.Age, student.RollNumber)
 
 		if err != nil {
+			if errors.Is(err, storagepkg.ErrDuplicateRollNumber) {
+				response.WriteJson(w, http.StatusConflict, response.GeneralError(err))
+				return
+			}
 			if errors.Is(err, storagepkg.ErrNotFound) {
 				response.WriteJson(w, http.StatusNotFound, response.GeneralError(err))
 				return

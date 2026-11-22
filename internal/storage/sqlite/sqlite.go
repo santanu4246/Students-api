@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -9,7 +10,7 @@ import (
 	"github.com/santanu/students-api/internal/storage"
 	"github.com/santanu/students-api/internal/types"
 
-	_ "github.com/mattn/go-sqlite3"
+	sqlite3 "github.com/mattn/go-sqlite3"
 )
 
 type Sqlite struct {
@@ -33,28 +34,9 @@ func New(cfg *config.Config)(*Sqlite, error) {
 		return nil, err
 	}
 
-	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS students (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	name TEXT,
-	email TEXT,
-	age INTEGER
-	)`)
-
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS attendance (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	student_id INTEGER NOT NULL,
-	date TEXT NOT NULL,
-	status TEXT NOT NULL,
-	FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
-	UNIQUE (student_id, date)
-	)`)
-
-	if err != nil {
-		return nil, err
+	// Tables are created and changed by the files in the migrations folder.
+	if err := runMigrations(db); err != nil {
+		return nil, fmt.Errorf("run migrations: %w", err)
 	}
 
 	return &Sqlite{
@@ -62,19 +44,31 @@ func New(cfg *config.Config)(*Sqlite, error) {
 	} , nil
 }
 
-func (s *Sqlite) CreateStudent(name string, email string, age int) (int64 , error){
+// translateError turns a "unique constraint failed" error from SQLite into
+// storage.ErrDuplicateRollNumber. Other errors pass through unchanged.
+func translateError(err error) error {
+	var sqliteErr sqlite3.Error
 
-	stmt, err := s.Db.Prepare("INSERT INTO students (name, email, age) VALUES(?,?,?)")
+	if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
+		return storage.ErrDuplicateRollNumber
+	}
+
+	return err
+}
+
+func (s *Sqlite) CreateStudent(name string, email string, age int, rollNumber string) (int64 , error){
+
+	stmt, err := s.Db.Prepare("INSERT INTO students (name, email, age, roll_number) VALUES(?,?,?,?)")
 
 	if err != nil{
 		return 0, err
 	}
 	defer stmt.Close()
 
-	result , err := stmt.Exec(name, email, age)
+	result , err := stmt.Exec(name, email, age, rollNumber)
 
 	if err != nil {
-		return 0, err
+		return 0, translateError(err)
 	}
 
 	lastId, err := result.LastInsertId()
@@ -90,7 +84,7 @@ func (s *Sqlite) CreateStudent(name string, email string, age int) (int64 , erro
 
 func (s *Sqlite) GetStudentById(id int64) (types.Student, error) {
 
-	stmt, err := s.Db.Prepare("SELECT id, name, email, age FROM students WHERE id = ? LIMIT 1")
+	stmt, err := s.Db.Prepare("SELECT id, name, email, age, roll_number FROM students WHERE id = ? LIMIT 1")
 
 	if err != nil {
 
@@ -101,7 +95,11 @@ func (s *Sqlite) GetStudentById(id int64) (types.Student, error) {
 
 	var student types.Student
 
-	err = stmt.QueryRow(id).Scan(&student.Id, &student.Name, &student.Email, &student.Age)
+	// Students created before migration 3 have a NULL roll_number.
+	// A plain string cannot hold NULL, so scan into sql.NullString first.
+	var rollNumber sql.NullString
+
+	err = stmt.QueryRow(id).Scan(&student.Id, &student.Name, &student.Email, &student.Age, &rollNumber)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -110,22 +108,24 @@ func (s *Sqlite) GetStudentById(id int64) (types.Student, error) {
 		return types.Student{}, fmt.Errorf("query error: %w", err)
 	}
 
+	student.RollNumber = rollNumber.String
+
 	return student, nil
 }
 
-func (s *Sqlite) UpdateStudent(id int64, name string, email string, age int) error {
+func (s *Sqlite) UpdateStudent(id int64, name string, email string, age int, rollNumber string) error {
 
-	stmt, err := s.Db.Prepare("UPDATE students SET name = ?, email = ?, age = ? WHERE id = ?")
+	stmt, err := s.Db.Prepare("UPDATE students SET name = ?, email = ?, age = ?, roll_number = ? WHERE id = ?")
 
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
-	result, err := stmt.Exec(name, email, age, id)
+	result, err := stmt.Exec(name, email, age, rollNumber, id)
 
 	if err != nil {
-		return err
+		return translateError(err)
 	}
 
 	rows, err := result.RowsAffected()

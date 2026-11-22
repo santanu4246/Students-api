@@ -9,10 +9,13 @@ import (
 // ErrNotFound is returned when no student matches the given id.
 var ErrNotFound = errors.New("student not found")
 
+// ErrDuplicateRollNumber is returned when another student already has that roll number.
+var ErrDuplicateRollNumber = errors.New("roll number already in use")
+
 type Storage interface {
-	CreateStudent(name string, email string, age int) (int64, error)
+	CreateStudent(name string, email string, age int, rollNumber string) (int64, error)
 	GetStudentById(id int64) (types.Student, error)
-	UpdateStudent(id int64, name string, email string, age int) error
+	UpdateStudent(id int64, name string, email string, age int, rollNumber string) error
 	DeleteStudent(id int64) error
 
 	// MarkAttendance records a status for a student on a date.
